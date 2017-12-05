@@ -67,7 +67,7 @@
 // authorization for such user.
 //
 // List of sensitive fields is expected to be in CSV format of
-// table_name,column_name pairs without header, see the -mask flag. It is
+// table_name,column_name pairs (case insensitive) without header, see the -mask flag. It is
 // implied that masked columns are of some text type (varchar, etc.), if they're
 // not, clients working with created views may be surprised by seeing text
 // placeholder value instead of non-text type of the original table.
@@ -309,7 +309,7 @@ func readPrivateFields(r io.Reader) ([]fieldSpec, error) {
 				return nil, fmt.Errorf("csv read: %q is not a valid name", s)
 			}
 		}
-		out = append(out, fieldSpec{rec[0], rec[1]})
+		out = append(out, fieldSpec{strings.ToLower(rec[0]), strings.ToLower(rec[1])})
 	}
 }
 
@@ -375,8 +375,9 @@ func createView(db *sql.DB, srcDB, dstDB, table, user string, mask fieldSpecSet)
 // string safe to be directly used in SQL expression.
 func viewValues(table, placeholder string, columns []string, mask fieldSpecSet) []string {
 	out := make([]string, len(columns))
+	table = strings.ToLower(table)
 	for i, field := range columns {
-		switch _, ok := mask[fieldSpec{table: table, field: field}]; {
+		switch _, ok := mask[fieldSpec{table: table, field: strings.ToLower(field)}]; {
 		case ok:
 			out[i] = placeholder
 		default:
