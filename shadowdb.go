@@ -322,7 +322,7 @@ func createView(db *sql.DB, srcDB, dstDB, table, user string, mask fieldSpecSet)
 		return fmt.Errorf("%q is not a valid user name", user)
 	}
 	if len(cols) == 0 {
-		return fmt.Errorf("table %q has no selectable columns")
+		return fmt.Errorf("table %q has no selectable columns", table)
 	}
 	const placeholder = "'*****'" // MUST be safe to use directly in SQL expression
 	vals := viewValues(table, placeholder, cols, mask)
