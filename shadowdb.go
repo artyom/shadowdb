@@ -24,6 +24,15 @@
 //		email varchar(100)
 // 	)
 //
+// Here's an example of query against such table:
+//
+//	> select * from original_db.users;
+//	+----+----------+------------------+
+//	| id | name     | email            |
+//	+----+----------+------------------+
+//	|  1 | John Doe | john@example.com |
+//	+----+----------+------------------+
+//
 // The view limiting visibility of the "name" column for such table can be created
 // like this:
 //
