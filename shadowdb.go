@@ -58,7 +58,10 @@
 // authorization for such user.
 //
 // List of sensitive fields is expected to be in CSV format of
-// table_name,column_name pairs without header, see the -mask flag.
+// table_name,column_name pairs without header, see the -mask flag. It is
+// implied that masked columns are of some text type (varchar, etc.), if they're
+// not, clients working with created views may be surprised by seeing text
+// placeholder value instead of non-text type of the original table.
 //
 // MySQL credentials (user and password) are read from the "client" section of
 // the .my.cnf file which is expected to have the following format:
