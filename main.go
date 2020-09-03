@@ -392,7 +392,7 @@ func viewValues(table, placeholder string, columns []string, mask fieldSpecSet) 
 // selectableColumns returns list of readable columns for the given table as
 // read from the information_schema.columns table.
 func selectableColumns(db *sql.DB, database, table string) ([]string, error) {
-	query := `select column_name from information_schema.columns
+	const query = `select column_name from information_schema.columns
 		where table_schema=? and table_name=? order by ordinal_position`
 	rows, err := db.Query(query, database, table)
 	if err != nil {
@@ -414,7 +414,7 @@ func selectableColumns(db *sql.DB, database, table string) ([]string, error) {
 }
 
 func databaseTables(db *sql.DB, database string) ([]string, error) {
-	query := `select table_name from information_schema.tables where table_schema=?`
+	const query = `select table_name from information_schema.tables where table_schema=?`
 	rows, err := db.Query(query, database)
 	if err != nil {
 		return nil, err
@@ -436,7 +436,7 @@ func databaseTables(db *sql.DB, database string) ([]string, error) {
 
 func createUser(db *sql.DB, name string) error {
 	var discard string
-	query := `select user from mysql.user where user=?`
+	const query = `select user from mysql.user where user=?`
 	switch err := db.QueryRow(query, name).Scan(&discard); err {
 	case nil:
 		return nil
