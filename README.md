@@ -1,4 +1,4 @@
-Documentation: https://godoc.org/github.com/artyom/shadowdb
+Documentation: https://pkg.go.dev/github.com/artyom/shadowdb
 
 Install:
 
