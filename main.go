@@ -103,7 +103,6 @@ import (
 
 	"github.com/artyom/autoflags"
 	"github.com/go-sql-driver/mysql"
-	"github.com/pkg/errors"
 )
 
 func main() {
@@ -183,20 +182,20 @@ func run(args runArgs) error {
 	defer db.Close()
 	tables, err := databaseTables(db, args.Database)
 	if err != nil {
-		return errors.WithMessage(err, "database tables retrieve")
+		return fmt.Errorf("database tables retrieve: %w", err)
 	}
 	if len(tables) == 0 {
 		return fmt.Errorf("database has no tables")
 	}
 	if _, err := db.Exec(`create database if not exists ` + args.Shadow); err != nil {
-		return errors.WithMessage(err, "destination database create")
+		return fmt.Errorf("destination database create: %w", err)
 	}
 	if err := createUser(db, args.User); err != nil {
-		return errors.WithMessage(err, "create user")
+		return fmt.Errorf("create user: %w", err)
 	}
 	for _, table := range tables {
 		if err := createView(db, args.Database, args.Shadow, table, args.User, mask); err != nil {
-			return errors.Wrapf(err, "table %q", table)
+			return fmt.Errorf("table %q: %w", table, err)
 		}
 	}
 	return nil
@@ -346,26 +345,28 @@ func createView(db *sql.DB, srcDB, dstDB, table, user string, mask fieldSpecSet)
 		if e, ok := err.(*mysql.MySQLError); ok && e.Number == 1141 {
 			// ignore "Error 1141: There is no such grant defined for user"
 		} else {
-			return errors.WithMessage(err, "privileges revoke")
+			return fmt.Errorf("privileges revoke: %w", err)
 		}
 	}
 
 	query = "GRANT SELECT (" + strings.Join(grantCols, ",") + ") ON " + srcDB + "." + table +
 		" TO '" + user + "'@'%'"
 	if _, err := db.Exec(query); err != nil {
-		return errors.WithMessage(err, "source table privileges grant")
+		return fmt.Errorf("source table privileges grant: %w", err)
 	}
 
 	query = "CREATE OR REPLACE SQL SECURITY INVOKER VIEW " +
 		dstDB + "." + table + " (" + strings.Join(cols, ",") + ") AS SELECT " +
 		strings.Join(vals, ",") + " FROM " + srcDB + "." + table
 	if _, err := db.Exec(query); err != nil {
-		return errors.WithMessage(err, "create view")
+		return fmt.Errorf("create view: %w", err)
 	}
 
 	query = "GRANT SELECT ON " + dstDB + "." + table + " TO '" + user + "'@'%'"
-	_, err = db.Exec(query)
-	return errors.WithMessage(err, "destination view privileges grant")
+	if _, err := db.Exec(query); err != nil {
+		return fmt.Errorf("destination view privileges grant: %w", err)
+	}
+	return nil
 }
 
 // viewValues returns values that should be used in CREATE VIEW ...  list.
