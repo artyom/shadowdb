@@ -175,10 +175,11 @@ func run(args runArgs) error {
 	if cfg.User == args.User {
 		return fmt.Errorf("user name from .my.cnf cannot be the same as provided by -user flag")
 	}
-	db, err := sql.Open("mysql", cfg.FormatDSN())
+	connector, err := mysql.NewConnector(cfg)
 	if err != nil {
 		return err
 	}
+	db := sql.OpenDB(connector)
 	defer db.Close()
 	tables, err := databaseTables(db, args.Database)
 	if err != nil {
