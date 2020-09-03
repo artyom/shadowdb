@@ -435,6 +435,9 @@ func databaseTables(db *sql.DB, database string) ([]string, error) {
 }
 
 func createUser(db *sql.DB, name string) error {
+	if !validName(name) {
+		return fmt.Errorf("%q is not a valid user name", name)
+	}
 	var discard string
 	const query = `select user from mysql.user where user=?`
 	switch err := db.QueryRow(query, name).Scan(&discard); err {
