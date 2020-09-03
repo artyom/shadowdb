@@ -92,6 +92,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
@@ -149,6 +150,7 @@ func (args *runArgs) check() error {
 }
 
 func run(args runArgs) error {
+	ctx := context.Background()
 	if err := args.check(); err != nil {
 		return err
 	}
@@ -181,21 +183,21 @@ func run(args runArgs) error {
 	}
 	db := sql.OpenDB(connector)
 	defer db.Close()
-	tables, err := databaseTables(db, args.Database)
+	tables, err := databaseTables(ctx, db, args.Database)
 	if err != nil {
 		return fmt.Errorf("database tables retrieve: %w", err)
 	}
 	if len(tables) == 0 {
 		return fmt.Errorf("database has no tables")
 	}
-	if _, err := db.Exec(`create database if not exists ` + args.Shadow); err != nil {
+	if _, err := db.ExecContext(ctx, `create database if not exists `+args.Shadow); err != nil {
 		return fmt.Errorf("destination database create: %w", err)
 	}
-	if err := createUser(db, args.User); err != nil {
+	if err := createUser(ctx, db, args.User); err != nil {
 		return fmt.Errorf("create user: %w", err)
 	}
 	for _, table := range tables {
-		if err := createView(db, args.Database, args.Shadow, table, args.User, mask); err != nil {
+		if err := createView(ctx, db, args.Database, args.Shadow, table, args.User, mask); err != nil {
 			return fmt.Errorf("table %q: %w", table, err)
 		}
 	}
@@ -319,8 +321,8 @@ func readPrivateFields(r io.Reader) ([]fieldSpec, error) {
 // string value of multiple asterisks. createView updates user privileges on the
 // srcDB.table to only select required columns (which are NOT present in mask)
 // and grants select privilege on dstDB.table view.
-func createView(db *sql.DB, srcDB, dstDB, table, user string, mask fieldSpecSet) error {
-	cols, err := selectableColumns(db, srcDB, table)
+func createView(ctx context.Context, db *sql.DB, srcDB, dstDB, table, user string, mask fieldSpecSet) error {
+	cols, err := selectableColumns(ctx, db, srcDB, table)
 	if err != nil {
 		return err
 	}
@@ -342,7 +344,7 @@ func createView(db *sql.DB, srcDB, dstDB, table, user string, mask fieldSpecSet)
 		}
 	}
 	query := "REVOKE SELECT ON " + srcDB + ".* FROM '" + user + "'@'%'"
-	if _, err := db.Exec(query); err != nil {
+	if _, err := db.ExecContext(ctx, query); err != nil {
 		if e, ok := err.(*mysql.MySQLError); ok && e.Number == 1141 {
 			// ignore "Error 1141: There is no such grant defined for user"
 		} else {
@@ -352,19 +354,19 @@ func createView(db *sql.DB, srcDB, dstDB, table, user string, mask fieldSpecSet)
 
 	query = "GRANT SELECT (" + strings.Join(grantCols, ",") + ") ON " + srcDB + "." + table +
 		" TO '" + user + "'@'%'"
-	if _, err := db.Exec(query); err != nil {
+	if _, err := db.ExecContext(ctx, query); err != nil {
 		return fmt.Errorf("source table privileges grant: %w", err)
 	}
 
 	query = "CREATE OR REPLACE SQL SECURITY INVOKER VIEW " +
 		dstDB + "." + table + " (" + strings.Join(cols, ",") + ") AS SELECT " +
 		strings.Join(vals, ",") + " FROM " + srcDB + "." + table
-	if _, err := db.Exec(query); err != nil {
+	if _, err := db.ExecContext(ctx, query); err != nil {
 		return fmt.Errorf("create view: %w", err)
 	}
 
 	query = "GRANT SELECT ON " + dstDB + "." + table + " TO '" + user + "'@'%'"
-	if _, err := db.Exec(query); err != nil {
+	if _, err := db.ExecContext(ctx, query); err != nil {
 		return fmt.Errorf("destination view privileges grant: %w", err)
 	}
 	return nil
@@ -391,10 +393,10 @@ func viewValues(table, placeholder string, columns []string, mask fieldSpecSet) 
 
 // selectableColumns returns list of readable columns for the given table as
 // read from the information_schema.columns table.
-func selectableColumns(db *sql.DB, database, table string) ([]string, error) {
+func selectableColumns(ctx context.Context, db *sql.DB, database, table string) ([]string, error) {
 	const query = `select column_name from information_schema.columns
 		where table_schema=? and table_name=? order by ordinal_position`
-	rows, err := db.Query(query, database, table)
+	rows, err := db.QueryContext(ctx, query, database, table)
 	if err != nil {
 		return nil, err
 	}
@@ -413,9 +415,9 @@ func selectableColumns(db *sql.DB, database, table string) ([]string, error) {
 	return out, rows.Err()
 }
 
-func databaseTables(db *sql.DB, database string) ([]string, error) {
+func databaseTables(ctx context.Context, db *sql.DB, database string) ([]string, error) {
 	const query = `select table_name from information_schema.tables where table_schema=?`
-	rows, err := db.Query(query, database)
+	rows, err := db.QueryContext(ctx, query, database)
 	if err != nil {
 		return nil, err
 	}
@@ -434,19 +436,19 @@ func databaseTables(db *sql.DB, database string) ([]string, error) {
 	return out, rows.Err()
 }
 
-func createUser(db *sql.DB, name string) error {
+func createUser(ctx context.Context, db *sql.DB, name string) error {
 	if !validName(name) {
 		return fmt.Errorf("%q is not a valid user name", name)
 	}
 	var discard string
 	const query = `select user from mysql.user where user=?`
-	switch err := db.QueryRow(query, name).Scan(&discard); err {
+	switch err := db.QueryRowContext(ctx, query, name).Scan(&discard); err {
 	case nil:
 		return nil
 	case sql.ErrNoRows:
 	default:
 		return err
 	}
-	_, err := db.Exec(`create user '` + name + "'")
+	_, err := db.ExecContext(ctx, `create user '`+name+"'")
 	return err
 }
